@@ -276,6 +276,45 @@ async def test_empty_workspace_starts_in_no_material_mode(
         PathService.reset_instance()
 
 
+@pytest.mark.asyncio
+async def test_course_study_sent_from_reading_runs_as_chat(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Local hotfix: Reading shows Chat, so a carried-over course_study is not run."""
+    monkeypatch.setenv("DEEPTUTOR_HOME", str(tmp_path))
+    PathService.reset_instance()
+    try:
+        workspace = ReadingCatalogStore().create_workspace("Video workspace")
+        runtime = TurnRuntimeManager(SQLiteSessionStore(tmp_path / "turns.sqlite3"))
+
+        async def _noop_run_turn(_execution) -> None:
+            return None
+
+        monkeypatch.setattr(runtime, "_run_turn", _noop_run_turn)
+        _session, turn = await runtime.start_turn(
+            {
+                "type": "start_turn",
+                "capability": "course_study",
+                "workspace_mode": "immersive_reading",
+                "reading_workspace_id": workspace.workspace_id,
+                "content": "How do these terms relate?",
+                "tools": [],
+                "knowledge_bases": [],
+                "attachments": [],
+                "language": "en",
+                "config": {},
+            }
+        )
+
+        assert runtime._executions[turn["id"]].payload["capability"] == "chat"
+        detail = await runtime.store.get_session(_session["id"])
+        assert detail is not None
+        assert detail["preferences"]["capability"] == "chat"
+    finally:
+        PathService.reset_instance()
+
+
 def test_explicit_reading_references_are_persisted_for_retry() -> None:
     snapshot = _request_snapshot_metadata(
         content="hi",

@@ -328,6 +328,12 @@ class TurnRequestPreparer:
             else preferences.get("workspace_mode"),
             capability=requested_capability,
         )
+        # Local hotfix (personal branch only): the reading composer shows Chat
+        # but can still send course_study carried in by a course hand-off; the
+        # frontend fix is proposed upstream. Course Study never teaches, so
+        # inside Reading run the Chat the learner sees.
+        if requested_capability == "course_study" and workspace_mode == WORKSPACE_MODE_READING:
+            requested_capability = "chat"
         capability_route = route_explicit_quiz_request(
             payload.get("content"),
             requested_capability,
